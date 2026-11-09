@@ -1,4 +1,4 @@
-# quake-tls: NVIDIA EGL TLS Fastpath Helper
+# wine-nvidia-egl-tls: NVIDIA EGL TLS Fastpath Helper
 
 A targeted `LD_PRELOAD` helper library for 32-bit x86 glibc Linux that eliminates CPU bottlenecks caused by frequent Thread-Local Storage (TLS) lookups in NVIDIA's proprietary 32-bit EGL driver (`libnvidia-eglcore.so`).
 
