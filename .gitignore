@@ -1,0 +1,4 @@
+*.so
+test-tls
+*.o
+*.log
