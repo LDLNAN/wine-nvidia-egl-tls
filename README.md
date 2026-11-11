@@ -37,16 +37,30 @@ Increasing the static TLS reserve (`glibc.rtld.optional_static_tls`) has minimal
 
 ## 📊 Measured Performance
 
-### Microbenchmark (`test-tls`)
-- Standard glibc resolver wrapper: **~42.7 ns / call**
-- `quake-tls` pinned-module fast path: **~2.8 ns / call**
-- **Speedup: ~15x faster per TLS lookup**
+### 1. Synthetic Microbenchmark (`test-tls`)
+Measures raw Dynamic TLS lookup latency for 10,000,000 queries:
+- Standard glibc resolver wrapper (`___tls_get_addr` + `XSAVEC`/`XRSTOR`): **~46.5 ns / call**
+- `quake-tls` pinned-module fast path (`%gs:4` DTV direct lookup): **~3.25 ns / call**
+- **Speedup: ~14.3x faster per TLS lookup**
 
-### Real-World Game Benchmark (Quake Live under GE-Proton Wayland)
+### 2. Real-World Game Benchmark: Quake Live (idTech 3 under GE-Proton Wayland)
 Benchmarked under identical controlled settings:
 - Baseline (vendor GE-Proton Wayland): **368.4 FPS** (1% Lows: 202.2 FPS)
 - With `quake-tls`: **437.4 FPS** (1% Lows: 233.4 FPS)
 - **Net Gain: +69.0 FPS (+18.7% average FPS, +15.4% 1% Lows)**
+
+### 3. Non-idTech Benchmark: Roy Longbottom's Windows OpenGL Suite (`videogl32.exe` under GE-Proton Wayland)
+Benchmarked at 640x480 across 6 distinct rendering workloads:
+| Workload | Baseline (Stock GE-Proton) | With `quake-tls` | Performance Change |
+| :--- | :--- | :--- | :--- |
+| **Wireframe Kitchen** (23,000 straight lines / draw calls) | **116.5 FPS** | **368.3 FPS** | **+216.1% (>3.1x faster)** 🚀 |
+| **Textured Kitchen** (Complex indoor multi-texture scene) | **90.0 FPS** | **234.8 FPS** | **+160.9% (>2.6x faster)** 🚀 |
+| **Textured Objects** (Few) | **1012.4 FPS** | **1048.0 FPS** | **+3.5%** |
+| **Coloured Objects** (Few) | **1166.7 FPS** | **1194.6 FPS** | **+2.4%** |
+| **Textured Objects** (All) | **866.7 FPS** | **872.3 FPS** | **+0.6%** |
+| **Coloured Objects** (All) | **1159.1 FPS** | **1170.2 FPS** | **+1.0%** |
+
+*Note: In workloads with high per-frame draw-call and state-query counts (like the Kitchen tests issuing thousands of immediate GL calls), bypassing the dynamic linker's `___tls_get_addr` resolver yields up to a 3.1x framerate improvement.*
 
 ---
 
