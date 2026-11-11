@@ -38,6 +38,11 @@ ___tls_get_addr:
     jz .Lfallback_reload
     addl 4(%eax),%ecx
     movl %ecx,%eax
+    call .Lget_pc_cx
+    addl $_GLOBAL_OFFSET_TABLE_,%ecx
+    cmpl $0, quake_tls_enable_count@GOTOFF(%ecx)
+    jz .Lreturn
+    lock addl $1, quake_tls_fastpath_count@GOTOFF(%ecx)
     jmp .Lreturn
 .Lfallback_reload:
     call .Lget_pc_cx
@@ -50,6 +55,11 @@ ___tls_get_addr:
     call *__tls_get_addr@GOT(%ecx)
     addl $4,%esp
     .cfi_adjust_cfa_offset -4
+    call .Lget_pc_cx
+    addl $_GLOBAL_OFFSET_TABLE_,%ecx
+    cmpl $0, quake_tls_enable_count@GOTOFF(%ecx)
+    jz .Lreturn
+    lock addl $1, quake_tls_fallback_count@GOTOFF(%ecx)
 .Lreturn:
     popl %edx
     .cfi_adjust_cfa_offset -4

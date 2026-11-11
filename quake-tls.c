@@ -2,6 +2,7 @@
 #include <dlfcn.h>
 #include <gnu/libc-version.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,7 +16,19 @@ _Static_assert(sizeof(void *) == 4, "Requires the i386 DTV ABI");
 /* Published once at startup, after pinning the module. Zero keeps every call
  * on the libc fallback. The assembly symbol is private to this DSO. */
 __attribute__((visibility("hidden"))) size_t quake_tls_module;
+__attribute__((visibility("hidden"))) uint32_t quake_tls_fastpath_count = 0;
+__attribute__((visibility("hidden"))) uint32_t quake_tls_fallback_count = 0;
+__attribute__((visibility("hidden"))) int quake_tls_enable_count = 0;
 static void *pinned_nvidia;
+
+__attribute__((destructor)) static void fini_quake_tls(void)
+{
+    if (quake_tls_enable_count) {
+        fprintf(stderr, "quake-tls pid=%ld tls_lookups: fastpath=%u, fallback=%u, total=%u\n",
+                (long)getpid(), quake_tls_fastpath_count, quake_tls_fallback_count,
+                quake_tls_fastpath_count + quake_tls_fallback_count);
+    }
+}
 
 __attribute__((constructor)) static void init_quake_tls(void)
 {
@@ -28,6 +41,9 @@ __attribute__((constructor)) static void init_quake_tls(void)
         "libnvidia-eglcore.so.615.78.08",
         NULL
     };
+
+    if (getenv("QUAKE_TLS_COUNT"))
+        quake_tls_enable_count = 1;
 
     /* Fail closed on libc versions not covered by verified tests,
      * unless explicitly permitted via QUAKE_TLS_FORCE_GLIBC=1. */
@@ -43,6 +59,14 @@ __attribute__((constructor)) static void init_quake_tls(void)
     }
     for (int i = 0; !pinned_nvidia && candidates[i] != NULL; i++) {
         pinned_nvidia = dlopen(candidates[i], RTLD_LAZY | RTLD_LOCAL | RTLD_NODELETE);
+    }
+
+    if (getenv("QUAKE_TLS_FORWARD_ONLY")) {
+        if (getenv("QUAKE_TLS_DIAGNOSTIC"))
+            fprintf(stderr, "quake-tls pid=%ld: control mode active (forward-only to glibc; driver pinned)\n",
+                    (long)getpid());
+        quake_tls_module = 0;
+        return;
     }
 
     if (pinned_nvidia && dlinfo(pinned_nvidia, RTLD_DI_TLS_MODID, &module) == 0)
